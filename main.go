@@ -26,7 +26,7 @@ type WebsocketMessage struct {
 }
 
 var (
-	connectedPeers map[string]Peer
+	connectedPeers map[string]*Peer
 )
 
 const (
@@ -46,7 +46,7 @@ const (
 const (
 	MSG_TYPE_LENGTH = 8
 	MSG_DIVIDER     = "::"
-	MSG_SEND        = "revcPeer"
+	MSG_SEND        = "recvPeer"
 	MSG_PEER_ID     = "gPeerCId"
 	MSG_ERROR       = "errorMsg"
 )
@@ -61,7 +61,11 @@ const (
 // message handlers
 var (
 	handlerMap = map[string](func(msg WebsocketMessage)){
-		OPR_SEND_DIRECT: handleSendMessage,
+		OPR_SEND_DIRECT:       handleSendMessage,
+		OPR_CREATE_V_PEER:     handleCreateVPeer,
+		OPR_DELETE_V_PEER:     handleDeleteVPeer,
+		OPR_CONNECT_V_PEER:    handleConnectVPeer,
+		OPR_DISCONNECT_V_PEER: handleDisconnectVPeer,
 	}
 )
 
@@ -69,7 +73,16 @@ func handleSendMessage(msg WebsocketMessage) {
 	receiverMsg := constructWebsocketMessage(MSG_SEND, msg.sender, msg.payload)
 	targetPeer, ok := connectedPeers[msg.target]
 	if ok {
-		targetPeer.conn.WriteMessage(websocket.TextMessage, receiverMsg)
+		if targetPeer.isVirtual {
+			fmt.Println("Broadcast to", targetPeer.broadcasts)
+			for _, peerId := range targetPeer.broadcasts {
+				if broadcastPeer, ok := connectedPeers[peerId]; ok {
+					broadcastPeer.conn.WriteMessage(websocket.TextMessage, receiverMsg)
+				}
+			}
+		} else {
+			targetPeer.conn.WriteMessage(websocket.TextMessage, receiverMsg)
+		}
 		return
 	}
 
@@ -79,6 +92,57 @@ func handleSendMessage(msg WebsocketMessage) {
 		return
 	}
 	fmt.Println("[ERROR]: Neither Target nor Sender are available")
+}
+
+func handleCreateVPeer(msg WebsocketMessage) {
+	peer := Peer{
+		id:         uuid.NewString(),
+		isVirtual:  true,
+		broadcasts: []string{msg.sender},
+	}
+	connectedPeers[peer.id] = &peer
+	fmt.Printf("Create VPeer %s\n", peer.id)
+
+	senderPeer, ok := connectedPeers[msg.sender]
+	if ok {
+		senderPeer.listens = append(senderPeer.listens, peer.id)
+		senderPeer.conn.WriteMessage(websocket.TextMessage, constructWebsocketMessage(MSG_PEER_ID, peer.id, peer.id))
+		return
+	}
+}
+
+func handleDeleteVPeer(msg WebsocketMessage) {
+	fmt.Printf("Delete VPeer %s\n", msg.target)
+	if vpeer, ok := connectedPeers[msg.target]; ok {
+		for _, peerId := range vpeer.broadcasts {
+			if peer, ok := connectedPeers[peerId]; ok {
+				peer.listens = filterSliceByPeerId(peer.listens, vpeer.id)
+			}
+		}
+	}
+}
+
+func handleConnectVPeer(msg WebsocketMessage) {
+	vpeer, vpeerOk := connectedPeers[msg.target]
+	peer, peerOk := connectedPeers[msg.sender]
+
+	if vpeerOk && peerOk {
+		fmt.Printf("Connect %s to VPeer %s\n", msg.sender, msg.target)
+		vpeer.broadcasts = append(vpeer.broadcasts, msg.sender)
+		peer.listens = append(peer.listens, msg.target)
+	}
+}
+
+func handleDisconnectVPeer(msg WebsocketMessage) {
+	fmt.Printf("Disconnect %s from VPeer %s\n", msg.sender, msg.target)
+
+	if vpeer, ok := connectedPeers[msg.target]; ok {
+		vpeer.broadcasts = filterSliceByPeerId(vpeer.broadcasts, msg.sender)
+	}
+
+	if peer, ok := connectedPeers[msg.target]; ok {
+		peer.listens = filterSliceByPeerId(peer.listens, msg.target)
+	}
 }
 
 // message parsing
@@ -92,7 +156,7 @@ const (
 )
 
 func parseWebsocketMessage(msg string, sender string) (WebsocketMessage, error) {
-	if len(msg) >= OPR_PAYLOAD_START+OPR_DIVIDER_LENGTH {
+	if !(len(msg) >= OPR_PAYLOAD_START) {
 		return WebsocketMessage{}, errors.New(ERR_MESSAGE_TOO_SHORT)
 	}
 
@@ -128,28 +192,25 @@ func handleWebsocket(c *websocket.Conn) {
 		isVirtual: false,
 		listens:   []string{},
 	}
-	connectedPeers[peer.id] = peer
+	connectedPeers[peer.id] = &peer
 
 	peer.conn.WriteMessage(websocket.TextMessage, constructWebsocketMessage(MSG_PEER_ID, peer.id, peer.id))
 
 	var (
-		mt  int
 		msg []byte
 		err error
 	)
 
 	for {
-		if mt, msg, err = c.ReadMessage(); err != nil {
+		if _, msg, err = c.ReadMessage(); err != nil {
+			if websocket.IsCloseError(err) {
+				delete(connectedPeers, peer.id)
+			}
 			fmt.Printf("err: %s\n", err)
 			break
 		}
 		fmt.Printf("recv: %s\n", msg)
 		handleWebsocketMessage(string(msg), peer.id)
-
-		if err = c.WriteMessage(mt, msg); err != nil {
-			fmt.Println("write:", err)
-			break
-		}
 	}
 }
 
@@ -160,7 +221,7 @@ func handleWebsocketMessage(raw string, sender string) {
 			target:    sender,
 			sender:    sender,
 			operation: OPR_SEND_DIRECT,
-			payload:   ERR_INVALID_MESSAGE,
+			payload:   err.Error(),
 		}
 		handleSendMessage(errorMsg)
 		return
@@ -194,6 +255,16 @@ func startServer() {
 }
 
 func main() {
-	connectedPeers = map[string]Peer{}
+	connectedPeers = map[string]*Peer{}
 	startServer()
+}
+
+// util
+
+func filterSliceByPeerId(slice []string, id string) []string {
+	newSlice := make([]string, len(slice)-1)
+	for _, elm := range slice {
+		newSlice = append(newSlice, elm)
+	}
+	return newSlice
 }
