@@ -59,6 +59,7 @@ const (
 const (
 	MSG_TYPE_LENGTH  = 8
 	MSG_DIVIDER      = "::"
+	MSG_SUCCESS      = "oprResOk"
 	MSG_SEND         = "recvPeer"
 	MSG_PING         = "sendPing"
 	MSG_PONG         = "sendPong"
@@ -90,7 +91,7 @@ var (
 	}
 )
 
-func sendWebsocketMessage(messageType string, sender string, target string, payload string) {
+func sendWebsocketMessage(messageType string, sender string, target string, payload string) bool {
 	receiverMsg := constructWebsocketMessage(messageType, sender, payload)
 	targetPeer, ok := connectedPeers[target]
 	if ok {
@@ -104,22 +105,29 @@ func sendWebsocketMessage(messageType string, sender string, target string, payl
 		} else {
 			targetPeer.conn.WriteMessage(websocket.TextMessage, receiverMsg)
 		}
-		return
+		return true
 	}
 
 	senderPeer, ok := connectedPeers[sender]
 	if ok {
 		senderPeer.conn.WriteMessage(websocket.TextMessage, constructWebsocketMessage(MSG_ERROR, sender, ERR_TARGET_NOT_FOUND))
-		return
 	}
 	fmt.Println("[ERROR]: Neither Target nor Sender are available")
+	return false
 }
 
 func handleSendMessage(msg WebsocketMessage) {
-	sendWebsocketMessage(MSG_SEND, msg.sender, msg.target, msg.payload)
+	if sendWebsocketMessage(MSG_SEND, msg.sender, msg.target, msg.payload) {
+		senderPeer, ok := connectedPeers[msg.sender]
+		if ok {
+			senderPeer.conn.WriteMessage(websocket.TextMessage, constructWebsocketMessage(MSG_SUCCESS, msg.sender, msg.target))
+			return
+		}
+	}
 }
 
 func handlePing(msg WebsocketMessage) {
+	fmt.Println("pinging", msg.target)
 	sendWebsocketMessage(MSG_PING, msg.sender, msg.target, msg.payload)
 }
 
@@ -140,7 +148,7 @@ func handleCreateVPeer(msg WebsocketMessage) {
 	senderPeer, ok := connectedPeers[msg.sender]
 	if ok {
 		senderPeer.listens = append(senderPeer.listens, peer.id)
-		senderPeer.conn.WriteMessage(websocket.TextMessage, constructWebsocketMessage(MSG_PEER_ID, peer.id, peer.id))
+		senderPeer.conn.WriteMessage(websocket.TextMessage, constructWebsocketMessage(MSG_PEER_ID, senderPeer.id, peer.id))
 		return
 	}
 }
@@ -277,7 +285,7 @@ func constructWebsocketMessage(msgType string, sender string, payload string) []
 	return []byte(msgType + MSG_DIVIDER + sender + MSG_DIVIDER + payload)
 }
 
-// ws server
+// ws server«
 func handleWebsocket(c *websocket.Conn) {
 	// websocket.Conn bindings https://pkg.go.dev/github.com/fasthttp/websocket?tab=doc#pkg-index
 	peer := Peer{
@@ -297,15 +305,13 @@ func handleWebsocket(c *websocket.Conn) {
 
 	for {
 		if _, msg, err = c.ReadMessage(); err != nil {
-			if websocket.IsCloseError(err) {
-				delete(connectedPeers, peer.id)
-			}
 			fmt.Printf("err: %s\n", err)
 			break
 		}
 		fmt.Printf("recv: %s\n", msg)
 		handleWebsocketMessage(string(msg), peer.id)
 	}
+	delete(connectedPeers, peer.id)
 }
 
 func handleWebsocketMessage(raw string, sender string) {
@@ -340,6 +346,18 @@ func startServer() {
 	app := fiber.New()
 	app.Use(logger.New())
 	app.Use(recover.New())
+	app.Get("/peers", func(c *fiber.Ctx) error {
+		peers := ""
+		for key, val := range connectedPeers {
+			peers += key
+			if val.isVirtual {
+				peers += " (virtual)"
+			}
+			peers += "\n"
+		}
+		c.SendString(peers)
+		return nil
+	})
 
 	app.Get("/ping", func(c *fiber.Ctx) error {
 		return c.SendString("pong")
