@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/websocket/v2"
+	"github.com/spf13/viper"
 )
 
 // wrapper for all websocket connection (virtual or not)
@@ -32,6 +33,12 @@ type WebsocketMessage struct {
 	payload   string
 }
 
+type serverConfig struct {
+	port string
+	host string
+}
+
+// globals
 var (
 	connectedPeers map[string]*Peer // stores all active connections
 	app            *fiber.App       // fiber app
@@ -405,7 +412,7 @@ func handleWebsocketMessage(raw string, sender string) {
 }
 
 // initialize and start fiber app
-func startServer() {
+func startServer(config serverConfig) {
 	app = fiber.New() // init fiber app
 
 	// apply middelware
@@ -438,7 +445,7 @@ func startServer() {
 	app.Get("/xpeer", websocket.New(handleWebsocket))
 
 	// start app
-	app.Listen("127.0.0.1:3000")
+	app.Listen(config.host + ":" + config.port)
 }
 
 // server entry point
@@ -449,10 +456,42 @@ func main() {
 	logWarn = log.New(os.Stdout, "[XPeer] [Warn] ", log.Ltime)
 	logError = log.New(os.Stdout, "[XPeer] [ERROR] ", log.Ltime)
 
-	startServer()
+	config := getConfig()
+	startServer(config)
 }
 
 // util
+
+// read config from xpeer.env
+func getConfig() serverConfig {
+	// configure viper to read xpeer.env
+	viper.SetConfigName("xpeer")
+	viper.AddConfigPath(".")
+	viper.AutomaticEnv()
+	viper.SetConfigType("env")
+
+	// set default values
+	viper.SetDefault("XPEER_HOST", "0.0.0.0")
+	viper.SetDefault("XPEER_PORT", "8192")
+
+	// read config file
+	if err := viper.ReadInConfig(); err != nil {
+		logWarn.Printf("error reading config: %s", err)
+	}
+
+	// read configured values
+	host, hostOk := viper.Get("XPEER_HOST").(string)
+	port, portOk := viper.Get("XPEER_PORT").(string)
+	if !hostOk || !portOk {
+		logError.Fatalf("Invalid type assertion")
+	}
+
+	// return config
+	return serverConfig{
+		host: host,
+		port: port,
+	}
+}
 
 // return given slice without specified string (id)
 func filterSliceByPeerId(slice []string, id string) []string {
