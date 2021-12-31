@@ -88,7 +88,7 @@ Disconnect from a virtual peer;
 
 ### sendPeer
 
-Send a messages directly to a peer (ca be a vpeer, which acts like a broadcaster in this situation)
+Send a messages directly to a peer (can be a vpeer, which acts like a broadcaster in this situation)
 
 > Target: the peers ID
 

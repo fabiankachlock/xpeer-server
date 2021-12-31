@@ -87,11 +87,12 @@ const (
 
 // all errors
 const (
-	ERR_MESSAGE_TOO_SHORT          = "error: message too short"
-	ERR_INVALID_MESSAGE            = "error: invalid message format"
-	ERR_UNKNOWN_OPERATION          = "error: message operation is unknown"
-	ERR_TARGET_NOT_FOUND           = "error: target could not be located"
-	ERR_STATE_MUTATION_NOT_ALLOWED = "error: state mutation of peers is not allowed"
+	ERR_MESSAGE_TOO_SHORT    = "error: message too short"
+	ERR_INVALID_MESSAGE      = "error: invalid message format"
+	ERR_UNKNOWN_OPERATION    = "error: message operation is unknown"
+	ERR_TARGET_NOT_FOUND     = "error: target could not be located"
+	ERR_PEER_NOT_VIRTUAL     = "error: that target peer is not virtual"
+	ERR_INVALID_STATE_FORMAT = "error: the state string is formatted invalidly"
 )
 
 // message handlers
@@ -138,17 +139,38 @@ func sendWebsocketMessage(messageType string, sender string, target string, payl
 	return errors.New(ERR_TARGET_NOT_FOUND)
 }
 
+func sendSuccess(peerId string, payload string) bool {
+	sendingError := sendWebsocketMessage(MSG_SUCCESS, peerId, peerId, payload)
+	if sendingError != nil {
+		// cannot send to initial sender -> discard operation quitely
+		logWarn.Printf("initial sender not available: %s\n", peerId)
+		return false
+	}
+	return true
+}
+
+func sendError(peerId string, err string, overrideSender ...string) bool {
+	logWarn.Printf("%s: sending error %s", peerId, err)
+	sender := peerId
+	if len(overrideSender) > 0 {
+		sender = overrideSender[0]
+	}
+	sendingError := sendWebsocketMessage(MSG_ERROR, sender, peerId, err)
+	if sendingError != nil {
+		// cannot send to initial sender -> discard operation quitely
+		logError.Printf("initial sender not available: %s\n", peerId)
+		return false
+	}
+	return true
+}
+
 // handle send message operation
 func handleSendMessage(msg WebsocketMessage) {
 	err := sendWebsocketMessage(MSG_SEND, msg.sender, msg.target, msg.payload)
 	if err == nil {
-		// error ca be discarded since if the sender is not available, no one can be notified
-		sendWebsocketMessage(MSG_SUCCESS, msg.sender, msg.sender, msg.target) // set target as payload (see xpeer spec)
+		sendSuccess(msg.sender, msg.target) // set target as payload (see xpeer spec)
 	} else {
-		anewErr := sendWebsocketMessage(MSG_ERROR, msg.sender, msg.sender, err.Error())
-		logWarn.Printf("%s: unknown target %s\n", msg.sender, msg.target)
-		if anewErr != nil {
-			// cannot send to sender -> discard operation quitely
+		if !sendError(msg.sender, err.Error()) {
 			logError.Printf("%s: neither target (%s) nor sender are available\n", msg.sender, msg.target)
 		}
 	}
@@ -158,9 +180,7 @@ func handleSendMessage(msg WebsocketMessage) {
 func handlePing(msg WebsocketMessage) {
 	err := sendWebsocketMessage(MSG_PING, msg.sender, msg.target, msg.payload)
 	if err != nil {
-		// error ca be discarded since if the sender is not available, no one can be notified
-		sendWebsocketMessage(MSG_ERROR, msg.sender, msg.sender, err.Error())
-		logWarn.Printf("%s: unknown target %s\n", msg.sender, msg.target)
+		sendError(msg.sender, err.Error())
 	}
 }
 
@@ -187,9 +207,7 @@ func handleCreateVPeer(msg WebsocketMessage) {
 	// notify peer specified as target with the new vpeers id
 	err := sendWebsocketMessage(MSG_PEER_ID, msg.target, msg.target, peer.id)
 	if err != nil {
-		// error ca be discarded since if the sender is not available, no one can be notified
-		sendWebsocketMessage(MSG_ERROR, msg.sender, msg.sender, err.Error())
-		logWarn.Printf("%s: unknown target %s\n", msg.sender, msg.target)
+		sendError(msg.sender, err.Error())
 	}
 }
 
@@ -214,12 +232,24 @@ func handleConnectVPeer(msg WebsocketMessage) {
 	vpeer, vpeerOk := connectedPeers[msg.target]
 	peer, peerOk := connectedPeers[msg.sender]
 
-	// TODO: check if vpeer & send error or success
+	// booth peer have to be available for a connection
 	if vpeerOk && peerOk {
-		logInfo.Printf("connect %s to vpeer %s\n", msg.sender, msg.target)
-		vpeer.broadcasts = append(vpeer.broadcasts, msg.sender)
-		peer.listens = append(peer.listens, msg.target)
-		sendWebsocketMessage(MSG_STATE_UPDATE, vpeer.id, peer.id, msg.payload)
+		// check if the target peer is actual a vpeer
+		if vpeer.isVirtual {
+			logInfo.Printf("connect %s to vpeer %s\n", msg.sender, msg.target)
+			// store the new connection
+			vpeer.broadcasts = append(vpeer.broadcasts, msg.sender)
+			peer.listens = append(peer.listens, msg.target)
+			// initial state update for connected peer
+			// TODO: make sure they actually arrive in the right order
+			sendSuccess(msg.sender, vpeer.id)
+			sendWebsocketMessage(MSG_STATE_UPDATE, vpeer.id, peer.id, msg.payload)
+			return
+		} else {
+			sendError(msg.sender, ERR_PEER_NOT_VIRTUAL)
+		}
+	} else {
+		sendError(msg.sender, ERR_TARGET_NOT_FOUND)
 	}
 }
 
@@ -227,24 +257,32 @@ func handleConnectVPeer(msg WebsocketMessage) {
 func handleDisconnectVPeer(msg WebsocketMessage) {
 	logInfo.Printf("disconnect %s from vpeer %s\n", msg.sender, msg.target)
 
-	// TODO: check if vpeer & send error or success
-	if vpeer, ok := connectedPeers[msg.target]; ok {
-		vpeer.broadcasts = filterSliceByPeerId(vpeer.broadcasts, msg.sender)
+	if peer, ok := connectedPeers[msg.target]; ok {
+		// remove from the peers listenings
+		peer.listens = filterSliceByPeerId(peer.listens, msg.target)
+	} else {
+		// server answer can be discarded, since the receiver of success/error isn't available
+		return
 	}
 
-	if peer, ok := connectedPeers[msg.target]; ok {
-		peer.listens = filterSliceByPeerId(peer.listens, msg.target)
+	if vpeer, ok := connectedPeers[msg.target]; ok {
+		if vpeer.isVirtual {
+			// remove from the vpeers broadcasts
+			vpeer.broadcasts = filterSliceByPeerId(vpeer.broadcasts, msg.sender)
+			sendSuccess(msg.sender, vpeer.id)
+		} else {
+			sendError(msg.sender, ERR_PEER_NOT_VIRTUAL)
+		}
 	}
 }
 
-// TODO: Fix error handling
 // override the state ov a vpeer
 func handlePutState(msg WebsocketMessage) {
 	// find vpeer
 	vpeer, ok := connectedPeers[msg.target]
 	if ok {
 		if !vpeer.isVirtual {
-			sendWebsocketMessage(MSG_ERROR, vpeer.id, msg.target, ERR_STATE_MUTATION_NOT_ALLOWED)
+			sendError(msg.sender, ERR_PEER_NOT_VIRTUAL, vpeer.id)
 			return
 		}
 		// override state
@@ -253,35 +291,39 @@ func handlePutState(msg WebsocketMessage) {
 		sendWebsocketMessage(MSG_STATE_UPDATE, vpeer.id, msg.target, msg.payload)
 		return
 	}
-	sendWebsocketMessage(MSG_ERROR, msg.sender, msg.sender, ERR_TARGET_NOT_FOUND)
+	sendError(msg.sender, ERR_TARGET_NOT_FOUND)
 }
 
-// TODO: Fix error handling
 // update state of a vpeer
 func handlePatchState(msg WebsocketMessage) {
 	vpeer, ok := connectedPeers[msg.target]
 	if ok {
 		if !vpeer.isVirtual {
-			sendWebsocketMessage(MSG_ERROR, vpeer.id, msg.target, ERR_STATE_MUTATION_NOT_ALLOWED)
+			sendError(msg.sender, ERR_PEER_NOT_VIRTUAL, vpeer.id)
 			return
 		}
 		// merge state
 		before := map[string]interface{}{}
-		after := map[string]interface{}{}
 		json.Unmarshal([]byte(vpeer.state), &before)
+		after := map[string]interface{}{}
 		json.Unmarshal([]byte(msg.payload), &after)
 		newState := mergeState(before, after)
-		// set new state
+
+		// encode new state
 		jsonEncoded, err := json.Marshal(newState)
-		if err == nil {
-			vpeer.state = string(jsonEncoded)
-			logInfo.Printf("%s: patch state of %s", msg.sender, msg.target)
+		if err != nil {
+			sendError(msg.sender, ERR_INVALID_STATE_FORMAT, vpeer.id)
+			return
 		}
+
+		// set new state
+		vpeer.state = string(jsonEncoded)
+		logInfo.Printf("%s: patch state of %s", msg.sender, msg.target)
 
 		sendWebsocketMessage(MSG_STATE_UPDATE, vpeer.id, msg.target, msg.payload)
 		return
 	}
-	sendWebsocketMessage(MSG_ERROR, msg.sender, msg.sender, ERR_TARGET_NOT_FOUND)
+	sendError(msg.sender, ERR_TARGET_NOT_FOUND)
 }
 
 // merge two json object recursively
