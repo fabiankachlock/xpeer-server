@@ -5,6 +5,8 @@
 XPeer is trying to achieve a P2P feeling for developers even in environments where it isn't possible, eg. Browsers.
 XPeer makes pseudo P2P possible with the help of a *Relay-Server* and websocket connections between the relay server and it's clients (the "peers").
 
+Every Relay-Server should expose a endpoint /xpeer which allows websocket connections to be established.
+
 XPeer introduces a concept so called VPeer (virtual peer). A VPeer has a unique ID like every other peer, but instead of being connected to the server via websocket, it is a virtual construct on the server. Normal peers can subscribe to VPeers and broadcast messages to all other subscribers. A VPeer also consists of a shared state, which notifies all subscribers when modified.
 
 
@@ -76,7 +78,7 @@ Connect to a virtual peer to listen to messages or state updates;
 
 > Target: the vpeers ID
 
-> Server answers with success or error;
+> Server answers with teh state of the vpeer (success)  or error;
 
 ### disVPeer
 

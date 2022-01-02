@@ -53,8 +53,6 @@ func handleConnectVPeer(msg WebsocketMessage) {
 			vpeer.broadcasts = append(vpeer.broadcasts, msg.sender)
 			peer.listens = append(peer.listens, msg.target)
 			// initial state update for connected peer
-			// TODO: make sure they actually arrive in the right order
-			sendSuccess(msg.sender, vpeer.id)
 			sendWebsocketMessage(MSG_STATE_UPDATE, vpeer.id, peer.id, msg.payload)
 			return
 		} else {
