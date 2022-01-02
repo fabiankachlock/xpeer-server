@@ -3,10 +3,9 @@ package util
 import (
 	"crypto/rand"
 	"encoding/base64"
-
-	"github.com/fabiankachlock/xpeer-server/pkg/xpeer"
 )
 
+// return given slice without specified string (id)
 func FilterSliceByPeerId(slice []string, id string) []string {
 	newSlice := make([]string, len(slice)-1)
 	for _, elm := range slice {
@@ -27,10 +26,10 @@ func GenerateId() string {
 
 	_, err := rand.Read(b) // generate secure random bytes
 	if err != nil {
-		xpeer.ErrorLogger.Println(err.Error())
+		//xpeer.ErrorLogger.Println(err.Error())
 		return "<<<err-id-gen>>>" // return error indicating placeholder id
 	}
 
 	// return base64 encoded random bytes appended with server id
-	return base64.RawURLEncoding.EncodeToString(b) + xpeer.SERVER_PREFIX_DIVIDER + xpeer.SERVER_SUFFIX
+	return base64.RawURLEncoding.EncodeToString(b)
 }
