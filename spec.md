@@ -14,7 +14,7 @@ XPeer introduces a concept so called VPeer (virtual peer). A VPeer has a unique 
 
 1. A client send an operation to the server
 2. The server processes the operation
-3. The servers sends a message (based of the operation) to one ore more clients
+3. The server sends a message (based of the operation) to one ore more clients
 
 ## Formats
 
@@ -26,6 +26,20 @@ XPeer introduces a concept so called VPeer (virtual peer). A VPeer has a unique 
 - targetID: a connection ID
 - payload: whatever you want encoded into a string
 
+#### Possible Operation Codes
+
+| Code     | Operation                     |
+| -------- | ----------------------------- |
+| sendPing | send a ping request           |
+| sendPong | answer to a ping request      |
+| crtVPeer | create a new vpeer            |
+| delVPeer | delete a vpeer                |
+| conVPeer | connect to a vpeer            |
+| disVPeer | disconnect from a vpeer       |
+| sendPeer | send a message to a peer      |
+| putState | override the state of a vpeer |
+| patState | update the state of a vpeer   |
+
 ### Message 
 
 {messageCode}::{senderID}::{payload}
@@ -33,6 +47,19 @@ XPeer introduces a concept so called VPeer (virtual peer). A VPeer has a unique 
 - messageCode: 8 Character unique code (see [Messages](#messages))
 - senderID: a connection ID
 - payload: whatever you want encoded into a string
+
+#### Possible Message Codes
+
+| Code     | Message                                                                |
+| -------- | ---------------------------------------------------------------------- |
+| oprResOk | operation executed successfully                                        |
+| recvPeer | received message from peer                                             |
+| sendPing | peer requested a ping response                                         |
+| sendPong | peer responded to a ping (with a pong)                                 |
+| gPeerCId | message contains a peer id                                             |
+| errorMsg | an error happened while executing the operation [see #errors](#errors) |
+| stateMut | the state of a vpeer changed                                           |
+
 
 ### Connection ID
 
@@ -171,7 +198,35 @@ Indicates a state update of a connected vpeer;
 
 > Payload the new state encoded as json
 
+## Errors
+
+### error: message too short
+
+The message you sent is shorter than the minium message length. This likely means, that either you operationCode or you Id is not valid / too short 
+
+### error: invalid message format
+
+The message you send is in an invalid format. In most cases the dividers (`::`) are in wrong positions.
+
+### error: message operation is unknown
+
+The operation of your message is not known.
+
+### error: target could not be located
+
+The target of you operation is not registered on the server
+
+### error: that target peer is not virtual
+
+The target of the operation has to be virtual, but isn't.
+
+### error: the state string is formatted invalidly
+
+The state is not formatted as valid json.
+
+
 ## Limitations
 
 - VPeers can't connect to VPeers
 - A VPeers state <u>**has to be**</u> expressed as JSON
+- XPeer currently only works with one server
