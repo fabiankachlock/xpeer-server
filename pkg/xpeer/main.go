@@ -1,8 +1,11 @@
 package main
 
-import "github.com/fabiankachlock/xpeer-server"
+import (
+	"log"
+
+	"github.com/fabiankachlock/xpeer-server"
+)
 
 func main() {
-	s := xpeer.New()
-	s.Start()
+	log.Fatalln(xpeer.New().Start())
 }

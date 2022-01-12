@@ -46,9 +46,8 @@ func handleWebsocket(c *websocket.Conn) {
 	logInfo.Printf("disconnected %s\n", peer.id)
 }
 
-func New() Server {
+func NewServer(config ServerConfig) Server {
 	app = fiber.New() // init fiber app
-	config := getConfig()
 
 	// initialize globals
 	connectedPeers = map[string]*Peer{}
@@ -88,6 +87,20 @@ func New() Server {
 	return Server{app: app, Config: config}
 }
 
-func (s Server) Start() {
-	s.app.Listen(s.Config.Host + ":" + s.Config.Port)
+func New() Server {
+	config := getConfig()
+	server := NewServer(config)
+	return server
+}
+
+func DefaultConfig() ServerConfig {
+	return getConfig()
+}
+
+func (s Server) Start() error {
+	return s.app.Listen(s.Config.Host + ":" + s.Config.Port)
+}
+
+func (s Server) Stop() error {
+	return s.app.Shutdown()
 }
