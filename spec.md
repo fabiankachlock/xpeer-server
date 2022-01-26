@@ -105,7 +105,7 @@ Connect to a virtual peer to listen to messages or state updates;
 
 > Target: the vpeers ID
 
-> Server answers with teh state of the vpeer (success)  or error;
+> Server answers with the state of the vpeer (success)  or error;
 
 ### disVPeer
 
@@ -171,7 +171,7 @@ Indicates a successful ping operation;
 
 > Sender: the peers ID, which sent the answer;
 
-> Payload: none;
+> Payload: "virtual" if the peer is a vpeer;
 
 ### gPeerCId
 
