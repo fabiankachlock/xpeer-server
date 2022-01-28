@@ -75,7 +75,7 @@ func handlePatchState(msg WebsocketMessage) {
 		logInfo.Printf("%s: patch state of %s", msg.sender, msg.target)
 
 		sendSuccess(msg.sender, msg.target) // set target as payload (see xpeer spec)
-		sendWebsocketMessage(MSG_STATE_UPDATE, vpeer.id, msg.target, msg.payload)
+		sendWebsocketMessage(MSG_STATE_UPDATE, vpeer.id, msg.target, vpeer.state)
 		return
 	}
 	sendError(msg.sender, ERR_TARGET_NOT_FOUND)
