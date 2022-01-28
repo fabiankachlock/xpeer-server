@@ -53,7 +53,7 @@ func handleConnectVPeer(msg WebsocketMessage) {
 			vpeer.broadcasts = append(vpeer.broadcasts, msg.sender)
 			peer.listens = append(peer.listens, msg.target)
 			// initial state update for connected peer
-			sendWebsocketMessage(MSG_STATE_UPDATE, vpeer.id, peer.id, msg.payload)
+			sendWebsocketMessage(MSG_STATE_UPDATE, vpeer.id, peer.id, vpeer.state)
 			return
 		} else {
 			sendError(msg.sender, ERR_PEER_NOT_VIRTUAL)
