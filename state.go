@@ -41,6 +41,7 @@ func handlePutState(msg WebsocketMessage) {
 		// override state
 		vpeer.state = msg.payload
 		logInfo.Printf("%s: put state of %s", msg.sender, msg.target)
+		sendSuccess(msg.sender, msg.target) // set target as payload (see xpeer spec)
 		sendWebsocketMessage(MSG_STATE_UPDATE, vpeer.id, msg.target, msg.payload)
 		return
 	}
@@ -73,6 +74,7 @@ func handlePatchState(msg WebsocketMessage) {
 		vpeer.state = string(jsonEncoded)
 		logInfo.Printf("%s: patch state of %s", msg.sender, msg.target)
 
+		sendSuccess(msg.sender, msg.target) // set target as payload (see xpeer spec)
 		sendWebsocketMessage(MSG_STATE_UPDATE, vpeer.id, msg.target, msg.payload)
 		return
 	}
