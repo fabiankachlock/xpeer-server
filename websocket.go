@@ -17,12 +17,13 @@ func sendWebsocketMessage(messageType string, sender string, target string, payl
 		if targetPeer.isVirtual {
 			// is virtual peer -> send message to all listening peers
 			logInfo.Printf("%s: send broadcast from %s to %d peers", sender, target, len(targetPeer.broadcasts))
+			broadcastMessage := constructWebsocketMessage(messageType, targetPeer.id, payload)
 			// loop over all listeners
 			for _, peerId := range targetPeer.broadcasts {
 				// find listener connection
 				if broadcastPeer, ok := connectedPeers[peerId]; ok {
 					// send websocket message
-					broadcastPeer.conn.WriteMessage(websocket.TextMessage, receiverMsg)
+					broadcastPeer.conn.WriteMessage(websocket.TextMessage, broadcastMessage)
 				}
 			}
 		} else {
