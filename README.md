@@ -14,3 +14,7 @@ The xpeer-server is a pseudo p2p relay server which implements the xpeer-spec (s
 4. Optional: Run `go build -o xpeer-server pkg/xpeer/main.go` to create an executable which can be run via `./xpeer-server`
 
 (You can use the shell scripts in the `./scripts` folder alternatively)
+
+## Clients
+
+Currently only a client implementation for the web in Javascript is available. You can find it [here](https://github.com/fabiankachlock/xpeer-client/).
