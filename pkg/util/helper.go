@@ -7,7 +7,12 @@ import (
 
 // return given slice without specified string (id)
 func FilterSliceByPeerId(slice []string, id string) []string {
-	newSlice := make([]string, len(slice)-1)
+	newLen := len(slice) - 1
+	if newLen <= 0 {
+		return []string{}
+	}
+
+	newSlice := make([]string, newLen)
 	for _, elm := range slice {
 		if elm != id {
 			newSlice = append(newSlice, elm)

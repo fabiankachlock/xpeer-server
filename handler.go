@@ -52,8 +52,8 @@ func handleSendMessage(msg WebsocketMessage) {
 
 // handle ping operation
 func handlePing(msg WebsocketMessage) {
-	targetPeer := connectedPeers[msg.target]
-	if targetPeer.isVirtual {
+	targetPeer, ok := connectedPeers[msg.target]
+	if ok && targetPeer.isVirtual {
 		sendWebsocketMessage(MSG_PONG, msg.target, msg.sender, "virtual")
 		return
 	}
