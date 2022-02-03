@@ -8,12 +8,19 @@ The xpeer-server is a pseudo p2p relay server which implements the xpeer-spec (s
 
 ## How to run
 
+0. Clone the repository and cp into it.
+
 1. Install go 1.17 (or higher) [here](https://go.dev/dl/)
 2. Run: `go mod download` to install all dependencies
 3. Run `go run pkg/xpeer/main.go` to start the server
 4. Optional: Run `go build -o xpeer-server pkg/xpeer/main.go` to create an executable which can be run via `./xpeer-server`
 
 (You can use the shell scripts in the `./scripts` folder alternatively)
+
+### Docker
+
+1. Build Image: `docker build . -t xpeer-server`
+2. Run in Container: `docker run --name xpeer-server xpeer-server`
 
 ## Clients
 
