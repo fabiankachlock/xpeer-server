@@ -2,6 +2,7 @@ package xpeer
 
 import (
 	"log"
+	"os"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
@@ -38,11 +39,11 @@ type Server struct {
 
 // globals
 var (
-	connectedPeers map[string]*Peer // stores all active connections
-	app            *fiber.App       // fiber app
-	logInfo        *log.Logger      // log infos
-	logWarn        *log.Logger      // log warnings
-	logError       *log.Logger      // log errors
+	connectedPeers map[string]*Peer                                                     // stores all active connections
+	app            *fiber.App                                                           // fiber app
+	logInfo        *log.Logger      = log.New(os.Stdout, "[XPeer] ", log.Ltime)         // log infos
+	logWarn        *log.Logger      = log.New(os.Stdout, "[XPeer] [Warn] ", log.Ltime)  // log warnings
+	logError       *log.Logger      = log.New(os.Stdout, "[XPeer] [ERROR] ", log.Ltime) // log errors
 )
 
 // WriteMessage(messageType int, data []byte) error

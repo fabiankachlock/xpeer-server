@@ -1,9 +1,6 @@
 package xpeer
 
 import (
-	"log"
-	"os"
-
 	"github.com/fabiankachlock/xpeer-server/pkg/util"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -51,9 +48,6 @@ func NewServer(config ServerConfig) Server {
 
 	// initialize globals
 	connectedPeers = map[string]*Peer{}
-	logInfo = log.New(os.Stdout, "[XPeer] ", log.Ltime)
-	logWarn = log.New(os.Stdout, "[XPeer] [Warn] ", log.Ltime)
-	logError = log.New(os.Stdout, "[XPeer] [ERROR] ", log.Ltime)
 
 	// apply middelware
 	app.Use(logger.New(logger.Config{

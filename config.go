@@ -4,6 +4,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	DEFAULT_HOST = "0.0.0.0"
+	DEFAULT_PORT = "8102"
+)
+
 // read config from xpeer.env
 func getConfig() ServerConfig {
 	// configure viper to read xpeer.env
@@ -13,8 +18,8 @@ func getConfig() ServerConfig {
 	viper.SetConfigType("env")
 
 	// set default values
-	viper.SetDefault("XPEER_HOST", "0.0.0.0")
-	viper.SetDefault("XPEER_PORT", "8192")
+	viper.SetDefault("XPEER_HOST", DEFAULT_HOST)
+	viper.SetDefault("XPEER_PORT", DEFAULT_PORT)
 
 	// read config file
 	if err := viper.ReadInConfig(); err != nil {
