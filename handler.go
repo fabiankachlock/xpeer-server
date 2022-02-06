@@ -20,7 +20,7 @@ func handleWebsocketMessage(raw string, sender string) {
 	// parse raw message into struct
 	msg, err := parseWebsocketMessage(raw, sender)
 	if err != nil {
-		logWarn.Printf("%s: errornous message %s\n", sender, err.Error())
+		logWarn.Printf("%s: errornous message %s (%s)\n", sender, err.Error(), msg)
 		sendWebsocketMessage(MSG_ERROR, sender, sender, err.Error())
 		return
 	}
@@ -29,7 +29,7 @@ func handleWebsocketMessage(raw string, sender string) {
 	// get handler for message operation
 	handler, ok := handlerMap[msg.operation]
 	if !ok {
-		logWarn.Printf("%s: errornous message %s\n", sender, ERR_UNKNOWN_OPERATION)
+		logWarn.Printf("%s: errornous message %s (%s)\n", sender, ERR_UNKNOWN_OPERATION, msg)
 		sendWebsocketMessage(MSG_ERROR, sender, sender, ERR_UNKNOWN_OPERATION)
 		return
 	}
